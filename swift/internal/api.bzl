@@ -56,6 +56,7 @@ load(
     "SWIFT_FEATURE_FASTBUILD",
     "SWIFT_FEATURE_FULL_DEBUG_INFO",
     "SWIFT_FEATURE_INDEX_WHILE_BUILDING",
+    "SWIFT_FEATURE_GLOBAL_INDEX_STORE",
     "SWIFT_FEATURE_MINIMAL_DEPS",
     "SWIFT_FEATURE_MODULE_MAP_HOME_IS_CWD",
     "SWIFT_FEATURE_NO_GENERATED_HEADER",
@@ -412,6 +413,24 @@ def _sanitizer_copts(feature_configuration):
             copts.extend(flags)
     return copts
 
+def _global_index_store_path(bin_dir):
+    """Returns the index path where the Swift compiler should generate index files to.
+
+    The global index path is used if the `swift.use_global_index_store`
+    feature is enabled. Note that the use of this global store path is non-hermetic
+    and un-cacheable, but it avoids cache size bloat caused by index file duplication.
+
+    Args:
+        bin_dir: The Bazel `*-bin` directory root where the module cache
+            directory should be created. By placing it in `*-bin` (instead of
+            the default, a path based on `/tmp/*`), the cache will be reliably
+            cleaned when invoking `bazel clean`.
+
+    Returns:
+        The path to the global index store path.
+    """
+    return paths.join(bin_dir.path, "_swift_index_path")
+
 def _global_module_cache_path(bin_dir):
     """Returns the path where the Swift compiler should globally cache modules.
 
@@ -576,16 +595,22 @@ def _compile(
         feature_configuration,
     )
 
+    index_while_building = swift_common.is_enabled(
+        feature_configuration = feature_configuration,
+        feature_name = SWIFT_FEATURE_INDEX_WHILE_BUILDING,
+    )
+    global_index_path_enabled = swift_common.is_enabled(
+        feature_configuration = feature_configuration,
+        feature_name = SWIFT_FEATURE_GLOBAL_INDEX_STORE,
+    )
+
     compile_reqs = declare_compile_outputs(
         actions = actions,
         copts = copts + swift_toolchain.command_line_copts,
         is_wmo = is_wmo,
         srcs = srcs,
         target_name = target_name,
-        index_while_building = swift_common.is_enabled(
-            feature_configuration = feature_configuration,
-            feature_name = SWIFT_FEATURE_INDEX_WHILE_BUILDING,
-        ),
+        index_while_building = index_while_building and not global_index_path_enabled,
     )
     output_objects = compile_reqs.output_objects
 
@@ -597,6 +622,9 @@ def _compile(
     common_args = actions.args()
     compile_args = actions.args()
     derived_args = actions.args()
+
+    if global_index_path_enabled and bin_dir:
+        common_args.add("-index-store-path", _global_index_store_path(bin_dir))
 
     if _is_enabled(
         feature_configuration = feature_configuration,

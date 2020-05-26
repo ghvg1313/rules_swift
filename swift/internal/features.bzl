@@ -84,6 +84,10 @@ SWIFT_FEATURE_FULL_DEBUG_INFO = "swift.full_debug_info"
 # If enabled, the compilation action for a target will produce an index store.
 SWIFT_FEATURE_INDEX_WHILE_BUILDING = "swift.index_while_building"
 
+# If enabled, index store will be saved under a shared directory instead of action output
+# Doing so will make index store not compliation output, hence won't be cached.
+SWIFT_FEATURE_GLOBAL_INDEX_STORE = "swift.use_global_index_store"
+
 # If enabled, Swift libraries, binaries, and tests will only have automatic
 # dependencies on the targets provided by the toolchain's
 # `required_implicit_deps` field but not those in the `optional_implicit_deps`
